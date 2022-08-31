@@ -1,0 +1,116 @@
+<launch>
+    
+    <!-- clip depth image to 20 meters -->
+    <node pkg="px4_avoidance_airsim" type="depth_clip_node.py" name="depth_clip" output="screen" />
+
+    <!-- transfer depth image to pointcloud -->
+    <include file="$(find px4_avoidance_airsim)/launch/fast_planner/depth_to_pointcloud.launch"/>
+
+    <!-- Planner configs -->
+    <arg name="use_kino_planner" default="true" />
+    <arg name="map_size_x" default="280.0"/>  
+    <arg name="map_size_y" default="280.0"/>
+    <arg name="map_size_z" default=" 30.0"/>
+
+    <arg name="odom_topic" default="/mavros/local_position/odom" />
+    <arg name="camera_pose_topic" default="/camera/pose"/>
+    <arg name="depth_topic" default="/depth_clip_20"/>
+
+    <arg name="max_vel" default="2.0" />
+    <arg name="max_acc" default="0.5" />
+
+    <!-- ROS static transformation -->
+    <node pkg="tf" type="static_transform_publisher" name="world_map_linker" args="0 0 0 0 0 0 world map 100" />
+    <node pkg="tf" type="static_transform_publisher" name="world_map_linker_1" args="0 0 0 -1.57 3.1415 0 world world_ned 100" />
+    <node pkg="tf" type="static_transform_publisher" name="tf_camera" args="0 0 0 1.5708 0 1.5708 camera_1_body camera_link 33"/>
+
+    <!-- fix ENU and local_origin -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_local_origin"
+          args="0 0 0 0 0 0 world_enu local_origin 10"/>
+
+    <!-- clip depth image to 20 meters -->
+    <node pkg="px4_avoidance_airsim" type="depth_clip_node.py" name="depth_clip_20" output="screen" />
+
+
+    <!-- start Fast planner -->
+    <include file="$(find px4_avoidance_airsim)/launch/fast_planner/kino_algorithm.xml">
+
+        <arg name="map_size_x_" value="$(arg map_size_x)"/>
+        <arg name="map_size_y_" value="$(arg map_size_y)"/>
+        <arg name="map_size_z_" value="$(arg map_size_z)"/>
+        <arg name="odometry_topic" value="$(arg odom_topic)"/>
+
+        <!-- depth topic: depth image, 640x480 by default -->
+        <!-- don't set cloud_topic if you already set these ones! -->
+        <arg name="camera_pose_topic" value="$(arg camera_pose_topic)"/>
+        <arg name="depth_topic" value="$(arg depth_topic)"/>
+
+        <!-- topic of point cloud measurement, such as from LIDAR  -->
+        <!-- don't set camera pose and depth, if you already set this one! -->
+        <arg name="cloud_topic" value="/pcl_render_node/cloud"/>
+
+        <!-- intrinsic params of the depth camera gazebo model 640x480 -->
+        <arg name="cx" value="320"/>
+        <arg name="cy" value="240"/>
+        <arg name="fx" value="320"/>
+        <arg name="fy" value="320"/>
+
+        <!-- maximum velocity and acceleration the drone will reach -->
+        <arg name="max_vel" value="$(arg max_vel)" />
+        <arg name="max_acc" value="$(arg max_acc)" />
+
+        <arg name="flight_type" value="1" />
+
+        <!-- global waypoints -->
+        <!-- If flight_type is set to 2, the drone will travel these waypoints one by one -->
+        <arg name="point_num" value="2" />
+
+        <arg name="point0_x" value="19.0" />
+        <arg name="point0_y" value="0.0" />
+        <arg name="point0_z" value="5.0" />
+
+        <!-- set more waypoints if you need -->
+        <arg name="point1_x" value="-19.0" />
+        <arg name="point1_y" value="0.0" />
+        <arg name="point1_z" value="5.0" />
+
+        <arg name="point2_x" value="0.0" />
+        <arg name="point2_y" value="19.0" />
+        <arg name="point2_z" value="5.0" />
+           
+    </include>
+
+    <!-- trajectory server -->
+    <node pkg="plan_manage" name="traj_server" type="traj_server" output="screen">
+        <remap from="/position_cmd" to="planning/ref_traj"/>
+        <remap from="/odom_world" to="$(arg odom_topic)"/>
+        <param name="traj_server/time_forward" value="1.5" type="double"/>
+    </node>
+
+    <!-- waypoint_generator -->
+    <node pkg="waypoint_generator" name="waypoint_generator" type="waypoint_generator" output="screen">
+        <remap from="~odom" to="$(arg odom_topic)"/>        
+        <remap from="~goal" to="/move_base_simple/goal"/>
+        <remap from="~traj_start_trigger" to="/traj_start_trigger" />
+        <param name="waypoint_type" value="manual-lonely-waypoint"/>    
+    </node>
+
+    <!-- Camera pose publisher -->
+    <node pkg="px4_avoidance_airsim" name="camera_pose_publisher" type="camera_pose_publisher.py" output="screen">
+        <param name="parent_frame" value="world" />
+        <param name="child_frame" value="camera_link" />
+        <param name="pose_topic" value="camera/pose" />
+    </node>
+
+    <!-- Trajectory transfer from fast-planner to mavros -->
+    <remap from="/mavros/setpoint_position/local" to="/input_setpoint_position_local" />
+    <node pkg="px4_avoidance_airsim" name="traj_msg_converter_pose" type="trajectory_msg_converter_pose.py" output="screen">
+        <param name="fast_planner_traj_topic" value="planning/ref_traj"/>
+        <param name="traj_pub_topic" value="mavros/setpoint_position/local"/>
+    </node>
+
+    <!-- Rviz -->
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find px4_avoidance_airsim)/rviz/rviz_fast_planner.rviz" />
+
+
+</launch>

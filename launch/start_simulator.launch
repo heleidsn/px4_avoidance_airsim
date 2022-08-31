@@ -1,0 +1,36 @@
+<launch>
+
+    <!-- start airsim ros -->
+    <include file="$(find airsim_ros_pkgs)/launch/airsim_node.launch"/>
+
+    <!-- Launch PX4 SITL -->
+    <arg name="vehicle" default="iris"/>
+    <include file="$(find px4)/launch/px4.launch">
+        <arg name="vehicle" value="$(arg vehicle)"/>
+    </include>
+
+    <!-- Launch MavROS -->
+    <arg name="fcu_url" default="udp://:14030@localhost:14280"/>
+    <arg name="gcs_url" default="" /> 
+    <arg name="tgt_system" default="1" />
+    <arg name="tgt_component" default="1" />
+
+    <arg name="ns" default="/"/>
+
+    <group ns="$(arg ns)">
+        <include file="$(find mavros)/launch/node.launch">
+            <arg name="pluginlists_yaml" value="$(find mavros)/launch/px4_pluginlists.yaml" />
+            <!-- <arg name="config_yaml" value="$(find px4_avoidance_airsim)/config/px4_config_local_planner.yaml" /> -->
+            <arg name="config_yaml" value="$(find px4_avoidance_airsim)/config/px4_config_fast_planner.yaml" />
+            <arg name="fcu_url" value="$(arg fcu_url)" />
+            <arg name="gcs_url" value="$(arg gcs_url)" />
+            <arg name="tgt_system" value="$(arg tgt_system)" />
+            <arg name="tgt_component" value="$(arg tgt_component)" />
+        </include>
+    </group>
+
+    
+
+    
+
+</launch>
