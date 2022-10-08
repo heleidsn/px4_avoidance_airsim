@@ -33,7 +33,7 @@ class PX4Evaluation():
     def __init__(self):
         rospy.logdebug('start px4_evaluation init node')
         rospy.init_node('px4_evaluation', anonymous=False,
-                        log_level=rospy.DEBUG)
+                        log_level=rospy.INFO)
 
         self.px4_ekf2_path = os.path.join(rospkg.RosPack().get_path("px4"),
                                           "build/px4_sitl_default/bin/px4-ekf2"
@@ -96,18 +96,18 @@ class PX4Evaluation():
         self.random_start_direction = True
         self.goal_distance = 100
         self.goal_angle_noise_degree = 180  # random goal direction
-        
+
         self.work_space_x = [-140, 140]
         self.work_space_y = [-140, 140]
         self.work_space_z = [0.5, 20]
-        self.max_episode_step = 1000
+        self.max_episode_step = 1500
 
         '''
         Settings for termination
         '''
-        
-        self.accept_radius = 2
-        self.min_dist_to_obs_meters = 0.5
+
+        self.accept_radius = 3
+        self.min_dist_to_obs_meters = 1
 
         rospy.logdebug('px4_evaluation node initialized...')
 
@@ -147,7 +147,7 @@ class PX4Evaluation():
             'is_crash': self.too_close_to_obstacle(),
             'step_num': self.step_num
         }
-        reward = self.compute_reward()
+        reward = 0
 
         self.cumulated_episode_reward += reward
         self.step_num += 1
@@ -158,8 +158,44 @@ class PX4Evaluation():
 
         return obs, reward, done, info
 
-    def compute_reward(self):
-        return 0
+    def compute_reward(self, done, action):
+        reward = 0
+        reward_reach = 10
+        reward_crash = -20
+        reward_outside = -10
+
+        if not done:
+            distance_now = self.get_distance_to_goal_3d()
+            reward_distance = (self.previous_distance_from_des_point - distance_now) / self.dynamic_model.goal_distance * 500  # normalized to 100 according to goal_distance
+            self.previous_distance_from_des_point = distance_now
+
+            reward_obs = 0
+            action_cost = 0
+
+            # add yaw_rate cost
+            yaw_speed_cost = 0.1 * abs(action[-1]) / self.dynamic_model.yaw_rate_max_rad
+
+            if self.dynamic_model.navigation_3d:
+                # add action and z error cost
+                v_z_cost = 0.1 * abs(action[1]) / self.dynamic_model.v_z_max
+                z_err_cost = 0.2 * abs(self.dynamic_model.state_raw[1]) / self.dynamic_model.max_vertical_difference
+                action_cost += v_z_cost + z_err_cost
+            
+            action_cost += yaw_speed_cost
+            
+            yaw_error = self.dynamic_model.state_raw[2]
+            yaw_error_cost = 0.1 * abs(yaw_error / 180)
+
+            reward = reward_distance - reward_obs - action_cost - yaw_error_cost
+        else:
+            if self.is_in_desired_pose():
+                reward = reward_reach
+            if self.is_crashed():
+                reward = reward_crash
+            if self.is_not_inside_workspace():
+                reward = reward_outside
+
+        return reward
 
     def get_obs(self):
         # get depth image from current topic
@@ -577,23 +613,57 @@ class PX4Evaluation():
 
         rospy.logdebug('airsim reset ok')
 
+    def get_distance_to_goal_3d(self):
+        current_pose = self.current_pose_local.pose.position
+        goal_pose = self._goal_pose.pose.position
+        relative_pose_x = current_pose.x - goal_pose.x
+        relative_pose_y = current_pose.y - goal_pose.y
+        relative_pose_z = current_pose.z - goal_pose.z
+
+        return math.sqrt(pow(relative_pose_x, 2) + pow(relative_pose_y, 2) + pow(relative_pose_z, 2))
     # --------------------evaluation function-----------------------
 
     def evaluation(self, eval_ep_num):
         # 以10hz发布控制指令
         # 然后获取当前的obs， reward等，并判断有没有结束
-        while not rospy.is_shutdown():
-            _ = self.reset()
-            while True:
-                action = 'test action'
+        episode_num = 1
 
-                _, _, done, _ = self.step(action)
-                if done:
-                    _ = self.reset()
+        episode_successes = []
+        episode_crash = []
+        step_num_list = []
+        reward_sum = np.array([.0])
+        
+        _ = self.reset()
+        
+        while episode_num <= eval_ep_num:
+            
+            action = 'test action'
+            _, _, done, info = self.step(action)
+            if done:
+                maybe_is_success = info.get('is_success')
+                maybe_is_crash = info.get('is_crash')
+
+                episode_successes.append(float(maybe_is_success))
+                episode_crash.append(float(maybe_is_crash))
+
+                if maybe_is_success:
+                    step_num_list.append(info.get('step_num'))
+
+                print('episode: ', episode_num,
+                      ' reward:', 0,
+                      'success:', maybe_is_success)
+
+                _ = self.reset()
+                episode_num += 1
+
+        print('Average episode reward: ', reward_sum[:eval_ep_num].mean(),
+              'Success rate:', np.mean(episode_successes),
+              'Crash rate:', np.mean(episode_crash),
+              'average step num: ', np.mean(step_num_list))
 
 
 if __name__ == '__main__':
-    eval_ep_num = 10
+    eval_ep_num = 50
     try:
         eval_node = PX4Evaluation()
         eval_node.evaluation(eval_ep_num)
