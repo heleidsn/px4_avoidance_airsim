@@ -15,20 +15,24 @@ This repo is only tested in Ubuntu18.04 with ROS Melodic.
 
 - Clone PX4-Autopilot
 
-PX4-Avoidacne
+[PX4-Avoidance](https://github.com/PX4/PX4-Avoidance)
 
-Fast-planner
+[Fast-planner](https://github.com/HKUST-Aerial-Robotics/Fast-Planner)
 
 ## Running in simulation
 
 1. Start AirSim environment
 
-   1. Download AirSim linux build from here.
+   1. Download AirSim linux build from [here](https://github.com/microsoft/AirSim/releases/tag/v1.8.1-windows).
    2. Start environment.
-2. Launch airsim_ros_node, px4 sitl and mavros
+2. Start simulation
+   1. `roslaunch px4_avoidance_airsim start_simulation.launch`
+   2. Note: The local-planner in PX4-avoidance and fast-planner using different config file. Please select the right config file when you start simulation using `roslaunch px4_avoidance_airsim start_simulation.launch`.
 3. Launch planning algorithms
+   1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch`
+4. Have fun
 
-## 几个限制
+## UAV settings
 
 MPC_XY_CRUISE 3m/s
 
