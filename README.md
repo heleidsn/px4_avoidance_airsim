@@ -32,6 +32,17 @@ This repo is only tested in Ubuntu18.04 with ROS Melodic.
    1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch`
 4. Have fun
 
+## Speed up the mavros topics
+
+Sometimes the communication between PX4 sitl and the AirSim is not fast enough. It leads to the very slow mavros topics, normally 4Hz for local_pose.
+
+ You have to modify the MAVLINK rate in
+ `ROMFS/px4fmu_common/init.d-posix/rcS`
+ Line 274 to
+ `mavlink start -x -u $udp_onboard_payload_port_local -r 4000000 -f -m onboard -o $udp_onboard_payload_port_remote`
+(in v1.11.3 version).
+In latest v1.13, it should be at `ROMFS/px4fmu_common/init.d-posix/px4-rc.mavlink` Line 29.
+
 ## UAV settings
 
 MPC_XY_CRUISE 3m/s
