@@ -8,16 +8,16 @@
 
     <!-- Planner configs -->
     <arg name="use_kino_planner" default="true" />
-    <arg name="map_size_x" default="280.0"/>  
+    <arg name="map_size_x" default="280.0"/>     <!--地图大小--> 
     <arg name="map_size_y" default="280.0"/>
-    <arg name="map_size_z" default=" 30.0"/>
+    <arg name="map_size_z" default=" 30.0"/>   
 
     <arg name="odom_topic" default="/mavros/local_position/odom" />
     <arg name="camera_pose_topic" default="/camera/pose"/>
     <arg name="depth_topic" default="/depth_clip_20"/>
 
-    <arg name="max_vel" default="2.0" />
-    <arg name="max_acc" default="0.5" />
+    <arg name="max_vel" default="3" />   <!--设置最大速度和加速度--> 
+    <arg name="max_acc" default="1" />
 
     <!-- ROS static transformation -->
     <node pkg="tf" type="static_transform_publisher" name="world_map_linker" args="0 0 0 0 0 0 world map 100" />
@@ -104,9 +104,8 @@
 
     <!-- Trajectory transfer from fast-planner to mavros -->
     <remap from="/mavros/setpoint_position/local" to="/input_setpoint_position_local" />
-    <node pkg="px4_avoidance_airsim" name="traj_msg_converter_pose" type="trajectory_msg_converter_pose.py" output="screen">
-        <param name="fast_planner_traj_topic" value="planning/ref_traj"/>
-        <param name="traj_pub_topic" value="mavros/setpoint_position/local"/>
+    <remap from="/mavros/setpoint_raw/local" to="/input_setpoint_velocity_local" />
+    <node pkg="px4_avoidance_airsim" name="traj_msg_converter" type="trajectory_msg_converter.py" output="screen">
     </node>
 
     <!-- Rviz -->

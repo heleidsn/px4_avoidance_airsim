@@ -13,11 +13,12 @@ from mavros_msgs.msg import State
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
+from mavros_msgs.msg import PositionTarget
 from mavros_msgs.srv import ParamSet, SetMode, CommandBool, CommandTOL
 from mavros_msgs.srv import CommandHome, CommandLong
 from airsim_ros_pkgs.srv import Reset
 
-from tf.transformations import quaternion_from_euler
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 
 class PX4Evaluation():
@@ -40,6 +41,7 @@ class PX4Evaluation():
                                           )
         self.bridge = CvBridge()
         self._rate = rospy.Rate(10.0)
+        self.control_method = 'position'   # choose velocity control or position control
 
         # Subscribers
         rospy.Subscriber('/mavros/state', State,
@@ -48,12 +50,16 @@ class PX4Evaluation():
                          callback=self.local_position_cb, queue_size=10)
         rospy.Subscriber('/input_setpoint_position_local', PoseStamped,
                          callback=self.pose_sp_cmd_cb, queue_size=10)
+        rospy.Subscriber('/input_setpoint_velocity_local', PositionTarget,
+                         callback=self.vel_sp_cmd_cb, queue_size=10)
         rospy.Subscriber('/depth_clip_20', Image,
                          callback=self.depth_image_cb, queue_size=10)
 
         # Publishers
         self.pub_pose_sp = rospy.Publisher('/mavros/setpoint_position/local',
                                            PoseStamped, queue_size=10)
+        self.pub_vel_sp = rospy.Publisher('/mavros/setpoint_raw/local',
+                                          PositionTarget, queue_size=10)
         self.pub_goal_pose = rospy.Publisher('/move_base_simple/goal',
                                              PoseStamped, queue_size=10)
         self.pub_init_fast_planner = rospy.Publisher('/init_planner',
@@ -77,6 +83,7 @@ class PX4Evaluation():
 
         # msg variables
         self.setpoint_position = PoseStamped()
+        self.setpoint_velocity = PositionTarget()
         self.depth_img_msg = 0
         self.depth_image_meter = 0
         self.current_pose_local = PoseStamped()
@@ -115,6 +122,9 @@ class PX4Evaluation():
 
     def pose_sp_cmd_cb(self, msg):
         self.setpoint_position = msg
+
+    def vel_sp_cmd_cb(self, msg):
+        self.setpoint_velocity = msg
 
     def local_position_cb(self, msg):
         self.current_pose_local = msg
@@ -180,9 +190,9 @@ class PX4Evaluation():
                 v_z_cost = 0.1 * abs(action[1]) / self.dynamic_model.v_z_max
                 z_err_cost = 0.2 * abs(self.dynamic_model.state_raw[1]) / self.dynamic_model.max_vertical_difference
                 action_cost += v_z_cost + z_err_cost
-            
+
             action_cost += yaw_speed_cost
-            
+
             yaw_error = self.dynamic_model.state_raw[2]
             yaw_error_cost = 0.1 * abs(yaw_error / 180)
 
@@ -225,7 +235,42 @@ class PX4Evaluation():
         return 0
 
     def set_action(self, action):
-        self.pub_pose_sp.publish(self.setpoint_position)
+        if self.control_method == 'position':
+            self.pub_pose_sp.publish(self.setpoint_position)
+        elif self.control_method == 'velocity':
+            # need to get velocity from position and yaw error
+            control_msg = PositionTarget()
+            control_msg.header.stamp = rospy.Time.now()
+            control_msg.header.frame_id = 'local_origin'
+            # BODY_NED
+            control_msg.coordinate_frame = 8
+            # use vx, vz, yaw_rate
+            control_msg.type_mask = int('011111000111', 2)
+
+            x_err = self.setpoint_position.pose.position.x - self.current_pose_local.pose.position.x
+            y_err = self.setpoint_position.pose.position.y - self.current_pose_local.pose.position.y
+            z_err = self.setpoint_position.pose.position.z - self.current_pose_local.pose.position.z
+
+            control_msg.velocity.x = math.sqrt(x_err*x_err + y_err*y_err)
+            control_msg.velocity.y = 0
+            control_msg.velocity.z = z_err
+
+            if control_msg.velocity.x < 0.1:
+                control_msg.yaw_rate = 0
+            else:
+                # calculate yaw according to x_err and y_err
+                yaw_current = self.get_euler_from_pose(self.current_pose_local.pose)[2]
+                yaw_error = math.atan2(y_err, x_err) - yaw_current
+                if yaw_error > math.pi:
+                    yaw_error -= 2*math.pi
+                elif yaw_error < -math.pi:
+                    yaw_error += 2*math.pi
+                control_msg.yaw_rate = yaw_error
+                print(yaw_error * 57.3)
+            self.pub_vel_sp.publish(control_msg)
+        else:
+            print('error: bad control_method, should be position or velocity')
+
         self._rate.sleep()
 
     def reset(self):
@@ -457,6 +502,17 @@ class PX4Evaluation():
         distance = np.linalg.norm(a - b)
 
         return distance
+
+    def get_euler_from_pose(self, pose):
+        q = np.empty((4, ), dtype=np.float64)
+        q[0] = pose.orientation.x
+        q[1] = pose.orientation.y
+        q[2] = pose.orientation.z
+        q[3] = pose.orientation.w
+
+        euler_rad = euler_from_quaternion(q)
+
+        return euler_rad
 
     # region Methods for PX4 control
 
