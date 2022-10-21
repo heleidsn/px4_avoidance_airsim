@@ -90,7 +90,7 @@
     <param name="sdf_map/max_ray_length" value="20"/>
 
     <param name="sdf_map/esdf_slice_height" value="0.3"/>
-    <param name="sdf_map/visualization_truncate_height"   value="10"/>
+    <param name="sdf_map/visualization_truncate_height"   value="30"/>    <!--调整可以看到的高度--> 
     <param name="sdf_map/virtual_ceil_height"   value="50"/>     <!--调整虚拟上界--> 
     <param name="sdf_map/show_occ_time"  value="false"/>
     <param name="sdf_map/show_esdf_time" value="false"/>
