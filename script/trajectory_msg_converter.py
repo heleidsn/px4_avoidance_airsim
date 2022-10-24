@@ -40,7 +40,7 @@ class MessageConverter:
         pose_msg.pose.position.z = msg.position.z
 
         q = quaternion_from_euler(0, 0, msg.yaw)  # RPY
-        pose_msg.pose.orientation.w = q[0]
+        pose_msg.pose.orientation.x = q[0]
         pose_msg.pose.orientation.y = q[1]
         pose_msg.pose.orientation.z = q[2]
         pose_msg.pose.orientation.w = q[3]
