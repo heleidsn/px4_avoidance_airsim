@@ -16,8 +16,8 @@
     <arg name="camera_pose_topic" default="/camera/pose"/>
     <arg name="depth_topic" default="/depth_clip_20"/>
 
-    <arg name="max_vel" default="3" />   <!--设置最大速度和加速度--> 
-    <arg name="max_acc" default="1" />
+    <arg name="max_vel" default="2" />   <!--设置最大速度和加速度--> 
+    <arg name="max_acc" default="0.5" />
 
     <!-- ROS static transformation -->
     <node pkg="tf" type="static_transform_publisher" name="world_map_linker" args="0 0 0 0 0 0 world map 100" />

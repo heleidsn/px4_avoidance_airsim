@@ -41,7 +41,7 @@ class PX4Evaluation():
                                           )
         self.bridge = CvBridge()
         self._rate = rospy.Rate(10.0)
-        self.control_method = 'position'   # choose velocity control or position control
+        self.control_method = 'velocity'   # choose velocity control or position control
 
         # Subscribers
         rospy.Subscriber('/mavros/state', State,
@@ -243,7 +243,7 @@ class PX4Evaluation():
             control_msg.header.stamp = rospy.Time.now()
             control_msg.header.frame_id = 'local_origin'
             # BODY_NED
-            control_msg.coordinate_frame = 8
+            control_msg.coordinate_frame = 1
             # use vx, vz, yaw_rate
             control_msg.type_mask = int('011111000111', 2)
 
@@ -251,21 +251,31 @@ class PX4Evaluation():
             y_err = self.setpoint_position.pose.position.y - self.current_pose_local.pose.position.y
             z_err = self.setpoint_position.pose.position.z - self.current_pose_local.pose.position.z
 
-            control_msg.velocity.x = math.sqrt(x_err*x_err + y_err*y_err)
-            control_msg.velocity.y = 0
+            # control_msg.velocity.x = math.sqrt(x_err*x_err + y_err*y_err)
+            # control_msg.velocity.y = 0
+            control_msg.velocity.x = x_err
+            control_msg.velocity.y = y_err
             control_msg.velocity.z = z_err
 
-            if control_msg.velocity.x < 0.1:
+            if math.sqrt(x_err*x_err + y_err*y_err) < 0.1:
                 control_msg.yaw_rate = 0
             else:
                 # calculate yaw according to x_err and y_err
                 yaw_current = self.get_euler_from_pose(self.current_pose_local.pose)[2]
-                yaw_error = math.atan2(y_err, x_err) - yaw_current
+                q = np.empty((4, ), dtype=np.float64)
+                pose = self.setpoint_position.pose
+                q[0] = pose.orientation.x
+                q[1] = pose.orientation.y
+                q[2] = pose.orientation.z
+                q[3] = pose.orientation.w
+                euler_rad = euler_from_quaternion(q)
+                yaw_setpoint = euler_rad[2]
+                yaw_error = yaw_setpoint - yaw_current
                 if yaw_error > math.pi:
                     yaw_error -= 2*math.pi
                 elif yaw_error < -math.pi:
                     yaw_error += 2*math.pi
-                control_msg.yaw_rate = yaw_error
+                control_msg.yaw_rate = yaw_error * 2.8
                 print(yaw_error * 57.3)
             self.pub_vel_sp.publish(control_msg)
         else:
