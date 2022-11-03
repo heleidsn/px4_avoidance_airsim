@@ -31,6 +31,7 @@ class PX4Evaluation():
     output:
         /mavros/setpoint_position/local
     """
+
     def __init__(self):
         rospy.logdebug('start px4_evaluation init node')
         rospy.init_node('px4_evaluation', anonymous=False,
@@ -77,7 +78,7 @@ class PX4Evaluation():
         self.takeoffService = rospy.ServiceProxy('/mavros/cmd/takeoff',
                                                  CommandTOL)
         self.set_home_client = rospy.ServiceProxy('/mavros/cmd/set_home',
-                                                   CommandHome)
+                                                  CommandHome)
         self._mavros_cmd_client = rospy.ServiceProxy('/mavros/cmd/command',
                                                      CommandLong)
 
@@ -176,19 +177,24 @@ class PX4Evaluation():
 
         if not done:
             distance_now = self.get_distance_to_goal_3d()
-            reward_distance = (self.previous_distance_from_des_point - distance_now) / self.dynamic_model.goal_distance * 500  # normalized to 100 according to goal_distance
+            reward_distance = (self.previous_distance_from_des_point - distance_now) / \
+                self.dynamic_model.goal_distance * \
+                500  # normalized to 100 according to goal_distance
             self.previous_distance_from_des_point = distance_now
 
             reward_obs = 0
             action_cost = 0
 
             # add yaw_rate cost
-            yaw_speed_cost = 0.1 * abs(action[-1]) / self.dynamic_model.yaw_rate_max_rad
+            yaw_speed_cost = 0.1 * \
+                abs(action[-1]) / self.dynamic_model.yaw_rate_max_rad
 
             if self.dynamic_model.navigation_3d:
                 # add action and z error cost
                 v_z_cost = 0.1 * abs(action[1]) / self.dynamic_model.v_z_max
-                z_err_cost = 0.2 * abs(self.dynamic_model.state_raw[1]) / self.dynamic_model.max_vertical_difference
+                z_err_cost = 0.2 * \
+                    abs(self.dynamic_model.state_raw[1]) / \
+                    self.dynamic_model.max_vertical_difference
                 action_cost += v_z_cost + z_err_cost
 
             action_cost += yaw_speed_cost
@@ -243,25 +249,29 @@ class PX4Evaluation():
             control_msg.header.stamp = rospy.Time.now()
             control_msg.header.frame_id = 'local_origin'
             # BODY_NED
-            control_msg.coordinate_frame = 1
+            control_msg.coordinate_frame = 8
             # use vx, vz, yaw_rate
             control_msg.type_mask = int('011111000111', 2)
 
-            x_err = self.setpoint_position.pose.position.x - self.current_pose_local.pose.position.x
-            y_err = self.setpoint_position.pose.position.y - self.current_pose_local.pose.position.y
-            z_err = self.setpoint_position.pose.position.z - self.current_pose_local.pose.position.z
+            x_err = self.setpoint_position.pose.position.x - \
+                self.current_pose_local.pose.position.x
+            y_err = self.setpoint_position.pose.position.y - \
+                self.current_pose_local.pose.position.y
+            z_err = self.setpoint_position.pose.position.z - \
+                self.current_pose_local.pose.position.z
 
-            # control_msg.velocity.x = math.sqrt(x_err*x_err + y_err*y_err)
-            # control_msg.velocity.y = 0
-            control_msg.velocity.x = x_err
-            control_msg.velocity.y = y_err
+            control_msg.velocity.x = math.sqrt(x_err*x_err + y_err*y_err)
+            control_msg.velocity.y = 0
+            # control_msg.velocity.x = x_err
+            # control_msg.velocity.y = y_err
             control_msg.velocity.z = z_err
 
-            if math.sqrt(x_err*x_err + y_err*y_err) < 0.1:
+            if math.sqrt(x_err*x_err + y_err*y_err) < 0.001:
                 control_msg.yaw_rate = 0
             else:
                 # calculate yaw according to x_err and y_err
-                yaw_current = self.get_euler_from_pose(self.current_pose_local.pose)[2]
+                yaw_current = self.get_euler_from_pose(
+                    self.current_pose_local.pose)[2]
                 q = np.empty((4, ), dtype=np.float64)
                 pose = self.setpoint_position.pose
                 q[0] = pose.orientation.x
@@ -276,7 +286,7 @@ class PX4Evaluation():
                 elif yaw_error < -math.pi:
                     yaw_error += 2*math.pi
                 control_msg.yaw_rate = yaw_error * 2.8
-                print(yaw_error * 57.3)
+                # print(yaw_error * 57.3)
             self.pub_vel_sp.publish(control_msg)
         else:
             print('error: bad control_method, should be position or velocity')
@@ -430,7 +440,7 @@ class PX4Evaluation():
 
         if not is_inside_workspace_now:
             rospy.loginfo("is_inside_workspace_now=" +
-                         str(is_inside_workspace_now))
+                          str(is_inside_workspace_now))
         if has_reached_des_pose:
             rospy.loginfo("has_reached_des_pose="+str(has_reached_des_pose))
         if too_close_to_obstacle:
@@ -492,11 +502,13 @@ class PX4Evaluation():
         :param start_point:
         :return:
         """
-        curr_position = np.array([current_position.x, current_position.y, current_position.z])
-        des_position = np.array([self._goal_pose.pose.position.x,\
-                                self._goal_pose.pose.position.y,\
-                                self._goal_pose.pose.position.z])
-        distance = self.get_distance_between_points(curr_position, des_position)
+        curr_position = np.array(
+            [current_position.x, current_position.y, current_position.z])
+        des_position = np.array([self._goal_pose.pose.position.x,
+                                 self._goal_pose.pose.position.y,
+                                 self._goal_pose.pose.position.z])
+        distance = self.get_distance_between_points(
+            curr_position, des_position)
 
         return distance
 
@@ -698,11 +710,11 @@ class PX4Evaluation():
         episode_crash = []
         step_num_list = []
         reward_sum = np.array([.0])
-        
+
         _ = self.reset()
-        
+
         while episode_num <= eval_ep_num:
-            
+
             action = 'test action'
             _, _, done, info = self.step(action)
             if done:

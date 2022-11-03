@@ -6,7 +6,7 @@
     <node pkg="airsim_tutorial_pkgs" type="depth_clip_node.py" name="depth_clip_20" output="screen" />
 
     <!-- transfer depth image to pointcloud -->
-    <include file="$(find airsim_tutorial_pkgs)/launch/avoidance_test/depth_to_pointcloud_new.launch"/>
+    <include file="$(find px4_avoidance_airsim)/launch/fast_planner/depth_to_pointcloud.launch"/>
 
     <!-- 设置点云topic -->
     <arg name="pointcloud_topics" default="[/airsim_node/drone_1/camera_1/DepthPlanar/registered/points]"/>

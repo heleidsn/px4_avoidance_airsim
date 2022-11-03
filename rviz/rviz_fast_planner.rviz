@@ -11,7 +11,9 @@ Panels:
         - /Planning1/position_cmd1
         - /Mapping1
         - /Mapping1/simulation_map1/Autocompute Value Bounds1
-        - /camera1
+        - /Drone Pose1
+        - /camera_1_body1
+        - /camera_link1
       Splitter Ratio: 0.5
     Tree Height: 341
   - Class: rviz/Selection
@@ -357,7 +359,7 @@ Visualization Manager:
       Enabled: false
       Name: Estimation
     - Alpha: 1
-      Axes Length: 1
+      Axes Length: 3
       Axes Radius: 0.10000000149011612
       Class: rviz/Pose
       Color: 0; 0; 255
@@ -437,12 +439,12 @@ Visualization Manager:
       Length: 2
       Name: camera_1_body
       Radius: 0.10000000149011612
-      Reference Frame: camera_1_body
+      Reference Frame: camera_1_body/static
       Value: true
     - Class: rviz/Axes
       Enabled: true
       Length: 1
-      Name: camera
+      Name: camera_link
       Radius: 0.20000000298023224
       Reference Frame: camera_link
       Value: true
@@ -473,25 +475,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/ThirdPersonFollower
-      Distance: 49.559146881103516
+      Distance: 17.084922790527344
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 4.462340354919434
-        Y: -0.5463215708732605
+        X: -1.2742247581481934
+        Y: 0.13704049587249756
         Z: -6.504250526428223
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.49479764699935913
+      Pitch: 1.3697965145111084
       Target Frame: camera_1_body
       Value: ThirdPersonFollower (rviz)
-      Yaw: 2.4004087448120117
+      Yaw: 3.1854140758514404
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 17.48538589477539

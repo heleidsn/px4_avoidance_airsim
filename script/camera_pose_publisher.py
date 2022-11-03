@@ -1,9 +1,5 @@
 #!/usr/bin/env python
 import rospy
-
-# Imports
-import rospy
-import math
 import tf
 from geometry_msgs.msg import PoseStamped
 
@@ -11,8 +7,8 @@ if __name__ == '__main__':
     rospy.init_node('camera_pose_publisher')
 
     parent_frame = rospy.get_param('~parent_frame', 'map')
-    camera_frame = rospy.get_param('~child_frame','camera_link')
-    pose_topic = rospy.get_param('~pose_topic','camera/pose')
+    camera_frame = rospy.get_param('~child_frame', 'camera_link')
+    pose_topic = rospy.get_param('~pose_topic', 'camera/pose')
 
     pose_pub = rospy.Publisher(pose_topic, PoseStamped, queue_size=1)
 
@@ -21,7 +17,8 @@ if __name__ == '__main__':
     rate = rospy.Rate(30.0)
     while not rospy.is_shutdown():
         try:
-            (trans,rot) = listener.lookupTransform('/'+parent_frame, '/'+camera_frame, rospy.Time(0))
+            (trans, rot) = listener.lookupTransform(
+                '/'+parent_frame, '/'+camera_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             continue
 
@@ -39,5 +36,3 @@ if __name__ == '__main__':
         pose_pub.publish(pose_msg)
 
         rate.sleep()
-
-
