@@ -1,4 +1,4 @@
-# Obstacle Avoidance using PX4 and AirSim
+# Obstacle Avoidance using PX4 and AirSim with ROS
 
 Integration of some algorithms with PX4 and AirSim for real-time collision-free and obstacle-free trajectories in bounded environment.
 
@@ -26,17 +26,19 @@ This repo is only tested in Ubuntu18.04 with ROS Melodic.
    1. Download AirSim linux build from [here](https://github.com/microsoft/AirSim/releases/tag/v1.8.1-windows).
    2. Start environment.
 2. Start simulation
+
    1. `roslaunch px4_avoidance_airsim start_simulation.launch`
    2. Note: The local-planner in PX4-avoidance and fast-planner using different config file. Please select the right config file when you start simulation using `roslaunch px4_avoidance_airsim start_simulation.launch`.
 3. Launch planning algorithms
+
    1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch`
 4. Have fun
 
 ## Speed up the mavros topics
 
-Sometimes the communication between PX4 sitl and the AirSim is not fast enough. It leads to the very slow mavros topics, normally 4Hz for local_pose.
+Sometimes the communication between PX4 SITL and the AirSim is not fast enough. It leads to the very slow mavros topics, normally 4Hz for local_pose.
 
- You have to modify the MAVLINK rate in
+ You can modify the MAVLINK data rate in
  `ROMFS/px4fmu_common/init.d-posix/rcS`
  Line 274 to
  `mavlink start -x -u $udp_onboard_payload_port_local -r 4000000 -f -m onboard -o $udp_onboard_payload_port_remote`
