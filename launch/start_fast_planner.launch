@@ -103,8 +103,8 @@
     </node>
 
     <!-- Trajectory transfer from fast-planner to mavros -->
-    <remap from="/mavros/setpoint_position/local" to="/input_setpoint_position_local" />
-    <remap from="/mavros/setpoint_raw/local" to="/input_setpoint_velocity_local" />
+    <!-- <remap from="/mavros/setpoint_position/local" to="/input_setpoint_position_local" /> -->
+    <!-- <remap from="/mavros/setpoint_raw/local" to="/input_setpoint_velocity_local" /> -->
     <node pkg="px4_avoidance_airsim" name="traj_msg_converter" type="trajectory_msg_converter.py" output="screen">
     </node>
 
