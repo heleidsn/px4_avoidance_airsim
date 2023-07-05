@@ -31,7 +31,7 @@ This repo is only tested in Ubuntu18.04 with ROS Melodic.
    2. Note: The local-planner in PX4-avoidance and fast-planner using different config file. Please select the right config file when you start simulation using `roslaunch px4_avoidance_airsim start_simulation.launch`.
 3. Launch planning algorithms
 
-   1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch`
+   1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch` or `roslaunch px4_avoidance_airsim start_fast_planner.launch`
 4. Have fun
 
 ## Speed up the mavros topics
@@ -54,3 +54,23 @@ MC_PITCHRATE_MAX 60 deg/s
 MC_ROLLRATE_MAX 60 deg/s
 
 MC_YAWRATE_MAX 60 deg/s
+
+## Change Fast-planner goal height
+
+method 1: 
+
+in `fast_planner/plan_manage/src/kino_replan_fsm.cpp`
+
+```
+if (target_type_ == TARGET_TYPE::MANUAL_TARGET) {  
+	end_pt_ << msg->poses[0].pose.position.x, msg->poses[0].pose.position.y, 1.0;
+}
+```
+
+method 2:
+
+in `uav_simulator/Utils/waypoint_generator/src/waypoint_generator.cpp` line 146
+
+```
+voidgoal_callback(constgeometry_msgs::PoseStamped::ConstPtr&msg) 
+```
