@@ -1,0 +1,9 @@
+<launch>
+    
+    <!-- clip depth image to 20 meters -->
+    <node pkg="px4_avoidance_airsim" type="depth_clip_node.py" name="depth_clip" output="screen" />
+
+    <!-- Rviz -->
+    <node name="rvizvisualisation" pkg="rviz" type="rviz" output="log" args="-d $(find px4_avoidance_airsim)/rviz/rviz_network.rviz" />
+    
+</launch>

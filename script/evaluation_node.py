@@ -4,6 +4,7 @@ import rospkg
 import os
 import math
 import random
+import airsim
 
 from cv_bridge import CvBridge, CvBridgeError
 import subprocess32 as subprocess
@@ -19,6 +20,8 @@ from mavros_msgs.srv import CommandHome, CommandLong
 from airsim_ros_pkgs.srv import Reset
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
+
+from stable_baselines3 import TD3, SAC, PPO
 
 
 class PX4Evaluation():
@@ -37,12 +40,15 @@ class PX4Evaluation():
         rospy.init_node('px4_evaluation', anonymous=False,
                         log_level=rospy.INFO)
 
+        self.client = airsim.VehicleClient()
+        self.client.confirmConnection()
+
         self.px4_ekf2_path = os.path.join(rospkg.RosPack().get_path("px4"),
                                           "build/px4_sitl_default/bin/px4-ekf2"
                                           )
         self.bridge = CvBridge()
-        self._rate = rospy.Rate(10.0)
-        self.control_method = 'velocity'   # choose velocity control or position control
+        self._rate = rospy.Rate(20.0)
+        self.control_method = 'network'   # choose velocity control or position control
 
         # Subscribers
         rospy.Subscriber('/mavros/state', State,
@@ -159,6 +165,8 @@ class PX4Evaluation():
             'step_num': self.step_num
         }
         reward = 0
+        
+        self.print_train_info(action, reward, info)
 
         self.cumulated_episode_reward += reward
         self.step_num += 1
@@ -216,7 +224,7 @@ class PX4Evaluation():
     def get_obs(self):
         # get depth image from current topic
         # Note: check image format. Now is 0-black near 255-wight far
-        image = self._depth_image_gray.copy()
+        image = self.depth_image_meter.copy()
 
         # transfer image to image obs according to 0-far  255-nears
         image_obs = 255 - image
@@ -238,7 +246,88 @@ class PX4Evaluation():
         return image_with_state
 
     def get_obs_new(self):
-        return 0
+        image = self.depth_image_meter.copy()  # (480, 640)
+
+        img_split = self.split_array(image, 5, 5)
+
+        img_feature = np.zeros(25)
+        for i, img in enumerate(img_split):
+            img_feature[i] = np.min(img)
+
+        for i in range(25):
+            img_feature[i] = (20 - img_feature[i]) / 20
+
+        state_feature = self.get_state_feature()
+        print("state_feature", state_feature)
+        
+        self.feature_all = np.hstack((img_feature, state_feature)).reshape(1, 28)
+        
+        return self.feature_all
+    
+    def get_state_feature(self):
+        '''
+        计算状态feature，归一化到0-1
+        '''
+        goal_pose = self._goal_pose.pose.position
+        
+        distance = self.get_distance_to_goal_2d()
+        relative_yaw = self._get_relative_yaw()  # return relative yaw -pi to pi
+        relative_pose_z = self.current_pose_local.pose.position.z - goal_pose.z  # current position z is positive
+
+        distance_norm = distance / self.goal_distance
+        vertical_distance_norm = relative_pose_z / 5 / 2 + 0.5
+        relative_yaw_norm = relative_yaw / math.pi / 2 + 0.5
+        
+        state_norm = np.array([distance_norm, vertical_distance_norm, relative_yaw_norm])
+        state_norm = np.clip(state_norm, 0, 1)
+
+        return state_norm
+
+    def get_distance_to_goal_2d(self):
+        goal_pose = self._goal_pose.pose.position
+        curr_pose = self.current_pose_local.pose.position
+        return math.sqrt(pow(goal_pose.x - curr_pose.x, 2) + pow(goal_pose.y - curr_pose.y, 2))
+    
+    def _get_relative_yaw(self):
+        '''
+        获取和目标位置的yaw偏差
+        '''
+        current_position = self.current_pose_local.pose.position
+        goal_pose = self._goal_pose.pose.position
+        # get relative angle
+        relative_pose_x = goal_pose.x - current_position.x
+        relative_pose_y = goal_pose.y - current_position.y
+        angle = math.atan2(relative_pose_y, relative_pose_x)
+
+        # get current yaw
+        explicit_quat = [self.current_pose_local.pose.orientation.x, self.current_pose_local.pose.orientation.y, self.current_pose_local.pose.orientation.z, self.current_pose_local.pose.orientation.w]
+
+        yaw_current = euler_from_quaternion(explicit_quat)[2]
+
+        # get yaw error
+        yaw_error = angle - yaw_current
+        if yaw_error > math.pi:
+            yaw_error -= 2*math.pi
+        elif yaw_error < -math.pi:
+            yaw_error += 2*math.pi
+
+        # print('curr: ', current_position)
+        # print('goal: ', goal_pose)
+        # print('angle: ', math.degrees(angle))
+        # print('yaw_curr: ', math.degrees(yaw_current))
+        # print('yaw_error: ', math.degrees(yaw_error))
+
+        return yaw_error
+    
+    def split_array(self, arr, row, col):
+        
+        l = np.array_split(arr, row, axis=0)
+        new_l = []
+        for a in l:
+            l = np.array_split(a, col, axis=1)
+            new_l += l
+
+        return new_l
 
     def set_action(self, action):
         if self.control_method == 'position':
@@ -288,6 +377,24 @@ class PX4Evaluation():
                 control_msg.yaw_rate = yaw_error * 2.8
                 # print(yaw_error * 57.3)
             self.pub_vel_sp.publish(control_msg)
+        elif self.control_method == 'network':
+            # 使用神经网络控制
+            control_msg = PositionTarget()
+            control_msg.header.stamp = rospy.Time.now()
+            control_msg.header.frame_id = 'local_origin'
+            # BODY_NED
+            control_msg.coordinate_frame = 8
+            # use vx, vz, yaw_rate
+            control_msg.type_mask = int('011111000111', 2)
+
+            # control_msg.position.z = 5
+            control_msg.velocity.x = action[0] * 0.5
+            control_msg.velocity.y = 0
+            control_msg.velocity.z = action[1] * 0.5
+            control_msg.yaw_rate = action[2]
+
+            self.pub_vel_sp.publish(control_msg)
+
         else:
             print('error: bad control_method, should be position or velocity')
 
@@ -739,11 +846,70 @@ class PX4Evaluation():
               'Crash rate:', np.mean(episode_crash),
               'average step num: ', np.mean(step_num_list))
 
+    def evaluation_using_network(self, eval_ep_num):
+        # 加载模型
+        model = SAC.load("/home/helei/catkin_py3/src/px4_avoidance_airsim/models/nh_simple_sac.zip", device='cuda')
+        # 使用DRL训练得到的神经网络进行决策
+        episode_num = 1
+
+        episode_successes = []
+        episode_crash = []
+        step_num_list = []
+        reward_sum = np.array([.0])
+
+        obs = self.reset()
+
+        while episode_num <= eval_ep_num:
+            t1 = rospy.Time.now()
+            unscaled_action, _ = model.predict(obs, deterministic=True)
+            t2 = rospy.Time.now()
+            time_predict = (t2 - t1).to_sec()
+            print(unscaled_action, time_predict)
+            
+            obs, reward, done, info = self.step(unscaled_action)
+            if done:
+                maybe_is_success = info.get('is_success')
+                maybe_is_crash = info.get('is_crash')
+
+                episode_successes.append(float(maybe_is_success))
+                episode_crash.append(float(maybe_is_crash))
+
+                if maybe_is_success:
+                    step_num_list.append(info.get('step_num'))
+
+                print('episode: ', episode_num,
+                      ' reward:', 0,
+                      'success:', maybe_is_success)
+
+                _ = self.reset()
+                episode_num += 1
+
+        print('Average episode reward: ', reward_sum[:eval_ep_num].mean(),
+              'Success rate:', np.mean(episode_successes),
+              'Crash rate:', np.mean(episode_crash),
+              'average step num: ', np.mean(step_num_list))
+        
+    def print_train_info(self, action, reward, info):
+        
+        feature_all = self.feature_all
+   
+        self.client.simPrintLogMessage('feature_all: ', str(feature_all))
+        
+        msg_train_info = "EP: {} Step: {} Total_step: {}".format(self.episode_num, self.step_num, self.total_step)
+
+        self.client.simPrintLogMessage('Train: ', msg_train_info)
+        self.client.simPrintLogMessage('Action: ', str(action))
+        self.client.simPrintLogMessage('reward: ', "{:4.4f} total: {:4.4f}".format(reward, self.cumulated_episode_reward))
+        self.client.simPrintLogMessage('Info: ', str(info))
+        # self.client.simPrintLogMessage('Feature_norm: ', str(self.dynamic_model.state_norm))
+        # self.client.simPrintLogMessage('Feature_raw: ', str(self.dynamic_model.state_raw))
+        self.client.simPrintLogMessage('Min_depth: ', str(self.depth_image_meter.min()))
+
 
 if __name__ == '__main__':
     eval_ep_num = 50
     try:
         eval_node = PX4Evaluation()
-        eval_node.evaluation(eval_ep_num)
+        eval_node.evaluation_using_network(eval_ep_num)
     except rospy.ROSInterruptException:
         pass
