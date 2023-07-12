@@ -4,6 +4,11 @@ Integration of some algorithms with PX4 and AirSim for real-time collision-free 
 
 This repo is only tested in Ubuntu18.04 with ROS Melodic.
 
+<p align="center">
+  <img src="demo_gif\demo_fast_planner.gif" width = "400" height = "225"/>
+  <img src="demo_gif\demo_px4_avoidance.gif" width = "400" height = "225"/>
+</p>
+
 ## Dependences
 
 [AirSim](https://github.com/microsoft/AirSim) 1.8.1
@@ -57,7 +62,7 @@ MC_YAWRATE_MAX 60 deg/s
 
 ## Change Fast-planner goal height
 
-method 1: 
+method 1:
 
 in `fast_planner/plan_manage/src/kino_replan_fsm.cpp`
 
