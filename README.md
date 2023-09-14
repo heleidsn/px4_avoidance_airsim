@@ -36,7 +36,7 @@ This repo is only tested in Ubuntu18.04 with ROS Melodic.
    2. Note: The local-planner in PX4-avoidance and fast-planner using different config file. Please select the right config file when you start simulation using `roslaunch px4_avoidance_airsim start_simulation.launch`.
 3. Launch planning algorithms
 
-   1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch` or `roslaunch px4_avoidance_airsim start_fast_planner.launch`
+   1. Such as `roslaunch px4_avoidance_airsim start_fast_planner.launch` or `roslaunch px4_avoidance_airsim start_px4_avoidance.launch`
 4. Have fun
 
 ## Speed up the mavros topics
